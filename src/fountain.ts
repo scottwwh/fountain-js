@@ -22,7 +22,14 @@ export class Fountain {
         this.inlineLex = new InlineLexer;
     }
 
-    parse(script: string, getTokens?: boolean): Script {
+    parse(script: string, getTokens?: boolean, useCustomHtml: boolean = false): Script {
+        let htmlMap = (token) => { return this.to_html(token) };
+        if (useCustomHtml) {
+            htmlMap = (token) => { return this.to_custom_html(token) };
+        }
+
+        // console.log('hi:', getTokens, useCustomHtml, htmlMap);
+
         // throw an error if given script source isn't a string
         if (typeof script === 'undefined' || script === null)
             throw new Error("Script is undefined or null.");
@@ -39,8 +46,8 @@ export class Fountain {
                 title: title ? this.inlineLex.reconstruct(title.text)
                         .replace('<br />', ' ').replace(/<(?:.|\n)*?>/g, '') : undefined,
                 html: {
-                    title_page: this.tokens.filter(token => token.is_title).map(token => this.to_html(token)).join(''),
-                    script: this.tokens.filter(token => !token.is_title).map(token => this.to_html(token)).join('')
+                    title_page: this.tokens.filter(token => token.is_title).map(token => htmlMap(token)).join(''),
+                    script: this.tokens.filter(token => !token.is_title).map(token => htmlMap(token)).join('')
                 },
                 tokens: getTokens ? this.tokens : undefined
             }
@@ -93,4 +100,65 @@ export class Fountain {
             case 'line_break': return '<br />';
         }
     }
+
+    // Reference: https://fountain.io/dingus
+    // 
+    // Modifying to reflect Fountain/Scrippets conventions
+    to_custom_html(token: Token) {
+        token.text = this.inlineLex.reconstruct(token.text);
+
+        switch (token.type) {
+
+            case 'title': return '<h1>' + token.text + '</h1>';
+            case 'credit': return '<p class="credit">' + token.text + '</p>';
+            case 'author': return '<p class="authors">' + token.text + '</p>';
+            case 'authors': return '<p class="authors">' + token.text + '</p>';
+            case 'source': return '<p class="source">' + token.text + '</p>';
+            case 'notes': return '<p class="notes">' + token.text + '</p>';
+            case 'draft_date': return '<p class="draft-date">' + token.text + '</p>';
+            case 'date': return '<p class="date">' + token.text + '</p>';
+            case 'contact': return '<p class="contact">' + token.text + '</p>';
+            case 'copyright': return '<p class="copyright">' + token.text + '</p>';
+
+            // case 'scene_heading': return '<h3' + (token.scene_number ? ' id="' + token.scene_number + '">' : '>') + token.text + '</h3>';
+            case 'scene_heading': return '<sceneheader' + (token.scene_number ? ' id="' + token.scene_number + '">' : '>') + token.text + '</sceneheader>';
+
+            // case 'transition': return '<h2>' + token.text + '</h2>';
+
+            case 'dual_dialogue_begin': return '<div class="dual-dialogue">';
+            case 'dialogue_begin': return '<div class="dialogue' + (token.dual ? ' ' + token.dual : '') + '">';
+
+            // case 'character': return '<h4>' + token.text + '</h4>';
+            // case 'character': return '<character>' + token.text + '</character>';
+
+            // case 'parenthetical': return '<p class="parenthetical">' + token.text + '</p>';
+            // case 'parenthetical': return '<parenthetical>' + token.text + '</parenthetical>';
+
+            // case 'dialogue': return '<p>' + token.text + '</p>';
+            case 'dialogue_end': return '</div>';
+            case 'dual_dialogue_end': return '</div>';
+
+            case 'section': return '<p class="section" data-depth="' + token.depth + '">' + token.text + '</p>';
+            case 'synopsis': return '<p class="synopsis">' + token.text + '</p>';
+
+            case 'note': return '<!-- ' + token.text + ' -->';
+            case 'boneyard_begin': return '<!-- ';
+            case 'boneyard_end': return ' -->';
+
+            // case 'action': return '<p>' + token.text + '</p>';
+            // case 'action': return '<action>' + token.text + '</action>';
+
+            // TODO: Ensure this is 100% CSS driven
+            case 'centered': return '<p class="centered">' + token.text + '</p>';
+
+            case 'lyrics': return '<p class="lyrics">' + token.text + '</p>';
+
+            case 'page_break': return '<hr />';
+            case 'line_break': return '<br />';
+
+            // This should work in the majority of cases!
+            default :
+                return `<${token.type}>` + token.text + `</${token.type}>`;            
+        }
+    }    
 }
